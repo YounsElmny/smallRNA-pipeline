@@ -33,7 +33,7 @@ flowchart TD
     A["Raw count matrix<br/>+ metadata"] --> B["Metadata cleaning<br/>& sample matching"]
     A --> uReads["Unmapped Reads"]
 
-    uReads --> mapping["alignment to the EquCab2.0 reference genome (ensembl)"]
+    uReads --> mapping["alignment to the EquCab3.0 reference genome (ensembl)"]
     mapping --> A
 
     B --> C["Expression filtering"]
