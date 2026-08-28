@@ -1,6 +1,6 @@
 # 🧬 Epididymal small RNA-seq analysis pipeline
 
-R-based workflow for the analysis of **small RNA-seq data during epididymal transit**, with a particular focus on the remodeling of the sperm small RNA payload along:
+R-based workflow for the analysis of **small RNA-seq data during epididymal transit**:
 
 **Head → Body → Tail**
 
@@ -31,6 +31,10 @@ The analysis includes both epididymal tissue and spermatozoa, with differential 
 ```mermaid
 flowchart TD
     A["Raw count matrix<br/>+ metadata"] --> B["Metadata cleaning<br/>& sample matching"]
+    A --> uReads["Unmapped Reads"]
+
+    uReads --> mapping["alignment to the EquCab2.0 reference genome (ensembl)"]
+    mapping --> A
 
     B --> C["Expression filtering"]
     C --> D["Small RNA annotation"]
@@ -41,10 +45,12 @@ flowchart TD
     E --> G["Gene-level matrix<br/>reads merged by annotation"]
 
     F --> H["Quality control"]
+    F --> J["DESeq2"]
+    G --> J
     G --> H
 
+
     H --> I["PCA analyses"]
-    H --> J["DESeq2"]
 
     J --> K["Head vs Body"]
     J --> L["Body vs Tail"]
@@ -54,10 +60,9 @@ flowchart TD
     L --> N
     M --> N
 
-    N --> O["Biotype-specific analyses"]
+    K --> O["Biotype-specific analyses"]
     O --> P["Up / Down summaries"]
     O --> Q["Venn diagrams"]
-    O --> R["Transition schematics"]
     O --> S["Tail-enriched RNA analysis"]
     O --> T["Read / Gene concordance"]
     O --> U["tRNA-specific analysis"]
@@ -71,7 +76,7 @@ flowchart TD
 The pipeline currently expects:
 
 ```text
-table_with_v1_biotypes_filled.tsv
+Count_matrix.tsv
 QNS31219_metadata.txt
 ```
 
@@ -340,7 +345,7 @@ This makes it possible to identify RNAs showing consistent enrichment during epi
 
 ---
 
-## ➡️ Epididymal transition schematics
+## ➡️ Epididymal transition 
 
 Biotype-specific schematic figures summarize differential changes along:
 
