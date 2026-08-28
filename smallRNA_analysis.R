@@ -112,8 +112,8 @@ include_pdf_as_large_png <- function(figs, dpi = 220, width = "100%") {
 # 1. Packages, colors, paths
 ############################################################
 
-## Fixer explicitement un miroir CRAN pour permettre l'installation
-## automatique des packages pendant le tricotage du RMarkdown.
+## Explicitly set a CRAN mirror to allow package installation
+## automatically when knitting the RMarkdown document.
 options(repos = c(CRAN = "https://cloud.r-project.org"))
 
 if (!requireNamespace("BiocManager", quietly = TRUE)) {
@@ -143,7 +143,7 @@ library(ggrepel)
 library(DESeq2)
 library(SummarizedExperiment)
 
-## Couleurs
+## Colors
 cols_region <- c(
   Head = "#F1D21A",
   Body = "#F28E1C",
@@ -180,24 +180,24 @@ cols_volcano <- c(
   "Higher_in_Tail" = "#A77768"
 )
 
-## Chemins
-setwd("~/small RNA Analysis/smallRNA_Eli")
+## Paths
+setwd("WorkDirectory")
 
-counts_file <- "table_with_v1_biotypes_filled.tsv"
+counts_file <- "Count_Matrix.tsv"
 meta_file   <- "QNS31219_metadata.txt"
 
 outdir <- "Figures"
 dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
 
-## Seuils généraux
+## General thresholds
 padj_cut <- 0.05
 lfc_cut  <- 1
 topN     <- 15
 
 
-## ----2-lecture-counts-metadata, eval=TRUE--------------------------------------------------------------------------------------------
+## ----2-read-counts-metadata, eval=TRUE-----------------------------------------------------------------------------------------------
 ############################################################
-# 2. Lecture counts + metadata
+# 2. Read counts + metadata
 ############################################################
 
 counts <- read.delim(
@@ -221,7 +221,7 @@ meta <- read.delim(
   fileEncoding = "Windows-1252"
 )
 
-## Enlever les colonnes vides éventuelles
+## Remove any empty columns
 counts <- counts[, colnames(counts) != "", drop = FALSE]
 
 
@@ -250,7 +250,7 @@ if (length(missing_meta_cols) > 0) {
   stop("Colonnes manquantes dans metadata : ", paste(missing_meta_cols, collapse = ", "))
 }
 
-## Colonnes samples A01-A42
+## Sample columns A01-A42
 sample_cols <- grep("^A[0-9]{2}$", colnames(counts), value = TRUE)
 
 if (length(sample_cols) == 0) {
@@ -260,7 +260,7 @@ if (length(sample_cols) == 0) {
 message("Nombre de colonnes samples trouvées : ", length(sample_cols))
 print(sample_cols)
 
-## Matrice counts brute
+## Raw count matrix
 counts_only <- counts[, sample_cols, drop = FALSE]
 
 counts_only <- apply(counts_only, 2, function(x) {
@@ -276,7 +276,7 @@ if (anyNA(counts_only)) {
   warning("Il y a des NA après conversion en entier dans counts_only.")
 }
 
-## Correspondance A01-A42 dans metadata
+## Match A01-A42 with metadata
 meta$A_sample <- sprintf("A%02d", as.integer(meta$nb))
 
 missing_in_counts <- setdiff(meta$A_sample, colnames(counts_only))
@@ -292,7 +292,7 @@ if (length(missing_in_meta) > 0) {
        paste(missing_in_meta, collapse = ", "))
 }
 
-## Nettoyage metadata
+## Metadata cleaning
 meta <- meta %>%
   dplyr::mutate(
     `Tissue type` = trimws(as.character(`Tissue type`)),
@@ -321,7 +321,7 @@ meta$Treatment <- factor(
   levels = c("Anti-GnRH", "None")
 )
 
-## Réordonner metadata dans le même ordre que counts_only
+## Reorder metadata to match counts_only
 idx <- match(colnames(counts_only), meta$A_sample)
 
 if (any(is.na(idx))) {
@@ -344,7 +344,7 @@ message("---- Filtrage expression ----")
 
 min_count <- 10
 
-## Groupes = grands tissus
+## Groups = major tissue types
 group_samples <- split(meta$A_sample, meta$`Tissue type`)
 group_samples <- lapply(group_samples, function(x) intersect(x, colnames(counts_only)))
 
@@ -531,13 +531,13 @@ if (length(missing_annot_cols) > 0) {
        paste(missing_annot_cols, collapse = ", "))
 }
 
-## Nettoyer les colonnes utilisées pour la priorité
+## Clean the columns used for priority annotation
 for (col in required_annot_cols) {
   counts_filtered_out[[col]] <- empty_to_na(counts_filtered_out[[col]])
 }
 
-## Créer l'annotation prioritaire
-## Priorité : miR > tRF > rRF > snoRNA > piR > ncRNA > cdna
+## Create the priority annotation
+## Priority: miR > tRF > rRF > snoRNA > piR > ncRNA > cdna
 counts_filtered_out <- counts_filtered_out %>%
   dplyr::mutate(
     gene_name_priority = dplyr::case_when(
@@ -585,7 +585,7 @@ write.table(
   row.names = FALSE
 )
 
-## Diagnostic unannotated
+## Unannotated diagnostic
 still_unannotated_check <- counts_filtered_out %>%
   dplyr::filter(is.na(gene_name_priority) | gene_name_priority == "") %>%
   dplyr::select(
@@ -720,7 +720,7 @@ counts_gene_DE <- counts_gene_df %>%
   tibble::column_to_rownames("gene_id") %>%
   as.matrix()
 
-############## Vérification ##############
+############## Check ##############
 #counts_gene_input %>%
 #  dplyr::filter(gene_id == "CM009148_1_112302588_112302054") %>%
 #  dplyr::select(
@@ -733,7 +733,7 @@ counts_gene_DE <- counts_gene_df %>%
 
 storage.mode(counts_gene_DE) <- "integer"
 
-## Contrôle conservation des counts
+## Check count conservation
 total_before_merge <- sum(as.matrix(counts_gene_input[, sample_cols]), na.rm = TRUE)
 total_after_merge  <- sum(counts_gene_DE, na.rm = TRUE)
 
@@ -784,7 +784,7 @@ message("Dimensions counts_gene_DE : ", paste(dim(counts_gene_DE), collapse = " 
 
 message("---- QC et proportions ----")
 
-## Taille de librairie
+## Library size
 lib_sizes <- colSums(counts_only)
 
 qc_lib <- tibble::tibble(
@@ -808,7 +808,7 @@ ggplot(qc_lib, aes(x = reorder(`Unique Sample name`, lib_size), y = lib_size)) +
 
 invisible(dev.off())
 
-## Distribution nombre de reads différents par gène
+## Distribution of the number of distinct reads per gene
 gene_read_distribution <- counts_filtered_out %>%
   dplyr::filter(!is.na(gene_name_priority), gene_name_priority != "") %>%
   dplyr::group_by(gene_name_priority, biotype_priority) %>%
@@ -850,7 +850,7 @@ ggplot(gene_read_distribution_plot, aes(x = n_reads_category)) +
 
 invisible(dev.off())
 
-## Proportions par biotype avant merge : nombre de reads/séquences différentes
+## Biotype proportions before merging: number of distinct reads/sequences
 biotype_prop_before_merge <- counts_filtered_out %>%
   dplyr::filter(!is.na(biotype_priority), biotype_priority != "") %>%
   dplyr::group_by(biotype_priority) %>%
@@ -889,7 +889,7 @@ ggplot(
 
 invisible(dev.off())
 
-## Proportions par biotype selon les counts totaux
+## Biotype proportions based on total counts
 counts_biotype_input <- counts_filtered_out %>%
   dplyr::filter(!is.na(biotype_priority), biotype_priority != "") %>%
   dplyr::mutate(
@@ -940,16 +940,16 @@ ggplot(
 
 invisible(dev.off())
 
-## Répartition des reads par biotype et par catégorie d’échantillons
-## Représentation harmonisée avec les autres analyses : pie charts + barplots empilés
+## Distribution of reads by biotype and sample category
+## Representation harmonized with the other analyses: pie charts + stacked barplots
 
-## Définir les samples spermatozoïdes, utilisé aussi plus bas pour le contrôle cDNA ----
+## Define spermatozoa samples, also used below for the cDNA check ----
 sperm_samples <- meta %>%
   dplyr::filter(`Tissue type` == "Spermatozoa") %>%
   dplyr::pull(A_sample) %>%
   intersect(sample_cols)
 
-## Nettoyer / préparer les catégories d’échantillons ----
+## Clean / prepare sample categories ----
 meta_biotype <- meta %>%
   dplyr::distinct(A_sample, .keep_all = TRUE) %>%
   dplyr::mutate(
@@ -969,8 +969,8 @@ meta_biotype <- meta %>%
     sample_category = paste(`Tissue type`, `Origin in Epididymis`, sep = "_")
   )
 
-## Calcul des reads par biotype et par sample ----
-## On agrège d'abord par biotype pour éviter de créer une table trop volumineuse.
+## Calculate reads by biotype and sample ----
+## First aggregate by biotype to avoid creating an excessively large table.
 biotype_by_sample <- counts_filtered_out %>%
   dplyr::mutate(
     Biotype = dplyr::case_when(
@@ -1012,7 +1012,7 @@ write.table(
   row.names = FALSE
 )
 
-## Calcul des reads par biotype et par catégorie ----
+## Calculate reads by biotype and category ----
 biotype_by_category <- biotype_by_sample %>%
   dplyr::group_by(sample_category, `Tissue type`, `Origin in Epididymis`, Biotype) %>%
   dplyr::summarise(
@@ -1034,11 +1034,11 @@ write.table(
   row.names = FALSE
 )
 
-## Version pour les figures : aucun regroupement en Other ----
+## Version for figures: no grouping into Other ----
 biotype_by_category_plot <- biotype_by_category %>%
   dplyr::mutate(Biotype_plot = Biotype)
 
-## Pie charts facettés par catégorie ----
+## Faceted pie charts by category ----
 pdf(
   file.path(outdir, "Piecharts_biotype_percent_reads_by_category.pdf"),
   width = 14,
@@ -1075,7 +1075,7 @@ ggplot(
 
 invisible(dev.off())
 
-## Barplot empilé des pourcentages, plus lisible pour comparer les catégories ----
+## Stacked percentage barplot, easier to read for comparing categories ----
 pdf(
   file.path(outdir, "Barplot_biotype_percent_reads_by_category.pdf"),
   width = 14,
@@ -1112,7 +1112,7 @@ ggplot(
 
 invisible(dev.off())
 
-## Barplot additionnel : quantité brute de reads par biotype et par catégorie ----
+## Additional barplot: raw read counts by biotype and category ----
 pdf(
   file.path(outdir, "Barplot_biotype_raw_reads_by_category.pdf"),
   width = 14,
@@ -1157,7 +1157,7 @@ message("- Piecharts_biotype_percent_reads_by_category.pdf")
 message("- Barplot_biotype_percent_reads_by_category.pdf")
 message("- Barplot_biotype_raw_reads_by_category.pdf")
 
-## Nombre de reads différents cDNA dans sperm
+## Number of distinct cDNA reads in sperm
 cdna_reads_sperm <- counts_filtered_out %>%
   dplyr::filter(biotype_priority == "cdna") %>%
   dplyr::mutate(
@@ -1260,7 +1260,7 @@ make_pca_plot <- function(vst_matrix, meta_df, filename, color_by, shape_by = "O
   return(pca_df)
 }
 
-## PCA VST tous samples
+## VST PCA for all samples
 dds_pca_all <- DESeq2::DESeqDataSetFromMatrix(
   countData = round(counts_filt),
   colData = meta,
@@ -1497,7 +1497,7 @@ message("---- PCA par biotype dans l'épididyme ----")
 pca_biotype_ep_dir <- file.path(outdir, "PCA_by_biotype_Epididymis")
 dir.create(pca_biotype_ep_dir, showWarnings = FALSE, recursive = TRUE)
 
-## Metadata épididyme uniquement : Head / Body / Tail
+## Epididymis-only metadata: Head / Body / Tail
 meta_ep_pca <- meta %>%
   dplyr::filter(
     `Tissue type` == "Epididymis",
@@ -1507,11 +1507,11 @@ meta_ep_pca <- meta %>%
 meta_ep_pca <- as.data.frame(meta_ep_pca)
 rownames(meta_ep_pca) <- meta_ep_pca$A_sample
 
-## Samples épididyme présents dans la matrice read-level
+## Epididymis samples present in the read-level matrix
 ep_samples <- intersect(rownames(meta_ep_pca), colnames(counts_DE))
 meta_ep_pca <- meta_ep_pca[ep_samples, , drop = FALSE]
 
-## Conserver explicitement l'ordre Head / Body / Tail
+## Explicitly preserve the Head / Body / Tail order
 meta_ep_pca$`Origin in Epididymis` <- factor(
   meta_ep_pca$`Origin in Epididymis`,
   levels = c("Head", "Body", "Tail")
@@ -1524,12 +1524,12 @@ if (length(ep_samples) < 3) {
   stop("Moins de 3 échantillons d'épididyme disponibles : PCA impossible.")
 }
 
-## Fonction PCA pour un biotype dans l'épididyme
+## PCA function for one biotype in the epididymis
 make_pca_one_biotype_epididymis <- function(biotype_name) {
 
   message("PCA épididyme — biotype : ", biotype_name)
 
-  ## Features appartenant au biotype demandé
+  ## Features belonging to the requested biotype
   features_biotype <- counts_filtered_out %>%
     dplyr::filter(biotype_priority == biotype_name) %>%
     dplyr::pull(feature_id) %>%
@@ -1542,10 +1542,10 @@ make_pca_one_biotype_epididymis <- function(biotype_name) {
     return(NULL)
   }
 
-  ## Matrice du biotype limitée aux échantillons d'épididyme
+  ## Biotype matrix restricted to epididymis samples
   counts_bio_ep <- counts_DE[features_biotype, ep_samples, drop = FALSE]
 
-  ## Retirer les features absentes de tous les échantillons d'épididyme
+  ## Remove features absent from all epididymis samples
   counts_bio_ep <- counts_bio_ep[
     rowSums(counts_bio_ep, na.rm = TRUE) > 0,
     ,
@@ -1562,7 +1562,7 @@ make_pca_one_biotype_epididymis <- function(biotype_name) {
     return(NULL)
   }
 
-  ## Éviter une erreur DESeq2 si un échantillon ne contient aucun count
+  ## Avoid a DESeq2 error if a sample contains no counts
   samples_all_zero <- colSums(counts_bio_ep, na.rm = TRUE) == 0
 
   if (any(samples_all_zero)) {
@@ -1575,7 +1575,7 @@ make_pca_one_biotype_epididymis <- function(biotype_name) {
     return(NULL)
   }
 
-  ## Transformation VST
+  ## VST transformation
   dds_bio_ep <- DESeq2::DESeqDataSetFromMatrix(
     countData = round(counts_bio_ep),
     colData = meta_ep_pca,
@@ -1603,7 +1603,7 @@ make_pca_one_biotype_epididymis <- function(biotype_name) {
       by = "A_sample"
     )
 
-  ## Sauvegarder les coordonnées
+  ## Save coordinates
   write.table(
     pca_bio_ep_df,
     file = file.path(
@@ -1657,8 +1657,8 @@ make_pca_one_biotype_epididymis <- function(biotype_name) {
   return(pca_bio_ep_df)
 }
 
-## Garder uniquement les biotypes ayant au moins une feature exprimée
-## dans les échantillons d'épididyme
+## Keep only biotypes with at least one expressed feature
+## in epididymis samples
 features_present_ep <- rownames(counts_DE)[
   rowSums(counts_DE[, ep_samples, drop = FALSE], na.rm = TRUE) > 0
 ]
@@ -1711,7 +1711,7 @@ dir.create(
   recursive = TRUE
 )
 
-## Metadata spermatozoïdes + épididyme : Head / Body / Tail
+## Spermatozoa + epididymis metadata: Head / Body / Tail
 meta_spz_ep_pca <- meta %>%
   dplyr::filter(
     `Tissue type` %in% c("Spermatozoa", "Epididymis"),
@@ -1721,14 +1721,14 @@ meta_spz_ep_pca <- meta %>%
 meta_spz_ep_pca <- as.data.frame(meta_spz_ep_pca)
 rownames(meta_spz_ep_pca) <- meta_spz_ep_pca$A_sample
 
-## Samples présents dans la matrice read-level
+## Samples present in the read-level matrix
 spz_ep_samples <- intersect(
   rownames(meta_spz_ep_pca),
   colnames(counts_DE)
 )
 meta_spz_ep_pca <- meta_spz_ep_pca[spz_ep_samples, , drop = FALSE]
 
-## Ordres explicites pour les légendes
+## Explicit ordering for legends
 meta_spz_ep_pca$`Origin in Epididymis` <- factor(
   meta_spz_ep_pca$`Origin in Epididymis`,
   levels = c("Head", "Body", "Tail")
@@ -1757,12 +1757,12 @@ if (length(spz_ep_samples) < 3) {
   stop("Moins de 3 échantillons SPZ + épididyme disponibles : PCA impossible.")
 }
 
-## Fonction PCA commune SPZ + épididyme pour un biotype
+## Shared PCA function for SPZ + epididymis for one biotype
 make_pca_one_biotype_spz_ep <- function(biotype_name) {
 
   message("PCA SPZ + épididyme — biotype : ", biotype_name)
 
-  ## Features appartenant au biotype demandé
+  ## Features belonging to the requested biotype
   features_biotype <- counts_filtered_out %>%
     dplyr::filter(biotype_priority == biotype_name) %>%
     dplyr::pull(feature_id) %>%
@@ -1780,14 +1780,14 @@ make_pca_one_biotype_spz_ep <- function(biotype_name) {
     return(NULL)
   }
 
-  ## Matrice du biotype limitée aux samples SPZ + épididyme
+  ## Biotype matrix restricted to SPZ + epididymis samples
   counts_bio_spz_ep <- counts_DE[
     features_biotype,
     spz_ep_samples,
     drop = FALSE
   ]
 
-  ## Retirer les features absentes de tous les samples retenus
+  ## Remove features absent from all retained samples
   counts_bio_spz_ep <- counts_bio_spz_ep[
     rowSums(counts_bio_spz_ep, na.rm = TRUE) > 0,
     ,
@@ -1807,7 +1807,7 @@ make_pca_one_biotype_spz_ep <- function(biotype_name) {
     return(NULL)
   }
 
-  ## Éviter une erreur de normalisation si un sample ne contient aucun count
+  ## Avoid a normalization error if a sample contains no counts
   samples_all_zero <- colSums(counts_bio_spz_ep, na.rm = TRUE) == 0
 
   if (any(samples_all_zero)) {
@@ -1820,7 +1820,7 @@ make_pca_one_biotype_spz_ep <- function(biotype_name) {
     return(NULL)
   }
 
-  ## Transformation VST
+  ## VST transformation
   dds_bio_spz_ep <- DESeq2::DESeqDataSetFromMatrix(
     countData = round(counts_bio_spz_ep),
     colData = meta_spz_ep_pca,
@@ -1834,7 +1834,7 @@ make_pca_one_biotype_spz_ep <- function(biotype_name) {
 
   vst_bio_spz_ep <- SummarizedExperiment::assay(vsd_bio_spz_ep)
 
-  ## PCA commune aux deux tissus
+  ## Joint PCA of both tissues
   pca_bio_spz_ep <- prcomp(t(vst_bio_spz_ep), scale. = FALSE)
   percentVar <- round(
     100 * (pca_bio_spz_ep$sdev^2 / sum(pca_bio_spz_ep$sdev^2)),
@@ -1850,7 +1850,7 @@ make_pca_one_biotype_spz_ep <- function(biotype_name) {
       by = "A_sample"
     )
 
-  ## Sauvegarder les coordonnées
+  ## Save coordinates
   write.table(
     pca_bio_spz_ep_df,
     file = file.path(
@@ -1920,8 +1920,8 @@ make_pca_one_biotype_spz_ep <- function(biotype_name) {
   return(pca_bio_spz_ep_df)
 }
 
-## Garder les biotypes ayant au moins une feature exprimée
-## dans les samples SPZ + épididyme
+## Keep biotypes with at least one expressed feature
+## in SPZ + epididymis samples
 features_present_spz_ep <- rownames(counts_DE)[
   rowSums(
     counts_DE[, spz_ep_samples, drop = FALSE],
@@ -2009,11 +2009,11 @@ res_head_vs_tail_annot <- res_head_vs_tail_df %>%
     contrast = "Head_vs_Tail_read_level",
     neglog10padj = -log10(padj),
 
-    ## Le contraste DESeq2 reste Head vs Tail :
+    ## The DESeq2 contrast remains Head vs Tail:
     ## log2FoldChange > 0 = Head > Tail
     ## log2FoldChange < 0 = Tail > Head
-    ## On inverse uniquement le signe pour l'affichage du volcano afin
-    ## d'avoir Tail à droite, sans modifier les résultats DESeq2.
+    ## Only the sign is inverted for volcano plot display so that
+    ## Tail appears on the right, without modifying the DESeq2 results.
     plot_log2FoldChange = -log2FoldChange,
 
     signif = !is.na(padj) & padj < padj_cut & abs(log2FoldChange) >= lfc_cut,
@@ -2032,15 +2032,15 @@ write.table(
   row.names = FALSE
 )
 
-## Volcano read-level tous biotypes
+## Read-level volcano plot for all biotypes
 volc_head_vs_tail <- res_head_vs_tail_annot
 
 n_de_read <- sum(volc_head_vs_tail$signif, na.rm = TRUE)
 
-## Nombre total de features en entrée du volcano
+## Total number of features included in the volcano plot
 n_input_read <- nrow(volc_head_vs_tail)
 
-## Nombre de features avec padj disponible
+## Number of features with an available adjusted p-value
 n_with_padj_read <- sum(!is.na(volc_head_vs_tail$padj))
 
 top_labels_read <- volc_head_vs_tail %>%
@@ -2110,16 +2110,16 @@ p_read <- ggplot(
 print(p_read)
 invisible(dev.off())
 
-## cDNA read-level uniquement
+## cDNA read-level only
 volc_cdna_head_vs_tail <- res_head_vs_tail_annot %>%
   dplyr::filter(biotype_priority == "cdna")
 
 n_cdna_de <- sum(volc_cdna_head_vs_tail$signif, na.rm = TRUE)
 
-## Nombre total de features cDNA en entrée du volcano
+## Total number of cDNA features included in the volcano plot
 n_input_cdna <- nrow(volc_cdna_head_vs_tail)
 
-## Nombre de features cDNA avec padj disponible
+## Number of cDNA features with an available adjusted p-value
 n_with_padj_cdna <- sum(!is.na(volc_cdna_head_vs_tail$padj))
 
 message(
@@ -2215,7 +2215,7 @@ p_cdna <- ggplot(
 print(p_cdna)
 invisible(dev.off())
 
-## Diagnostic des nombres affichés dans les volcano read-level
+## Diagnostic of the numbers displayed in the read-level volcano plots
 read_level_head_vs_tail_summary <- tibble::tibble(
   contrast = "Head_vs_Tail",
   level = c("all_read_features", "cdna_read_features"),
@@ -2316,10 +2316,10 @@ plot_gene_volcano <- function(res_df, contrast_name, group1, group2, out_dir, bi
     dplyr::mutate(
       neglog10padj = -log10(padj),
 
-      ## Le contraste DESeq2 reste group1 vs group2.
-      ## Le signe original de log2FoldChange est conservé dans la table.
-      ## Cette variable sert uniquement à afficher le deuxième groupe
-      ## à droite du volcano (Body pour HB, Tail pour BT et HT).
+      ## The DESeq2 contrast remains group1 vs group2.
+      ## The original log2FoldChange sign is retained in the table.
+      ## This variable is used only to display the second group
+      ## on the right side of the volcano plot (Body for HB, Tail for BT and HT).
       plot_log2FoldChange = -log2FoldChange,
       
       signif = !is.na(padj) & padj < padj_cut & abs(log2FoldChange) >= lfc_cut,
@@ -2478,9 +2478,9 @@ for (comp in comparisons_spz) {
 
 message("Volcano plots gene-level toutes comparaisons terminés.")
 
-## Diagnostic : le nombre total de gènes en entrée doit être identique
-## entre les contrastes gene-level all genes. La colonne n_with_padj peut varier
-## car DESeq2 peut attribuer padj = NA à certains gènes selon le contraste.
+## Diagnostic: the total number of input genes must be identical
+## across gene-level all-gene contrasts. The n_with_padj column may vary
+## because DESeq2 may assign padj = NA to some genes depending on the contrast.
 gene_level_contrast_summary <- lapply(
   names(gene_level_volcano_results),
   function(contrast_name) {
@@ -2619,7 +2619,7 @@ dir.create(
   recursive = TRUE
 )
 
-## Ordre demandé pour les trois comparaisons
+## Requested order for the three comparisons
 contrast_order_barplot <- c(
   "Head_vs_Body",
   "Body_vs_Tail",
@@ -2632,7 +2632,7 @@ comparison_labels_barplot <- c(
   Head_vs_Tail = "HT"
 )
 
-## Ordre logique des biotypes selon la priorité d'annotation
+## Logical biotype order according to annotation priority
 preferred_biotype_order <- c(
   "miR",
   "tRF",
@@ -2659,8 +2659,8 @@ biotype_order_barplot <- c(
   setdiff(sort(observed_biotypes_gene), preferred_biotype_order)
 )
 
-## Nombre total de gènes appartenant à chaque biotype.
-## Ce nombre ne dépend pas du contraste.
+## Total number of genes belonging to each biotype.
+## This number does not depend on the contrast.
 total_genes_by_biotype <- annot_gene %>%
   dplyr::filter(
     !is.na(biotype_priority),
@@ -2679,14 +2679,14 @@ total_genes_by_biotype <- annot_gene %>%
 
 print(total_genes_by_biotype)
 
-## Nombre de gènes DE up et down pour chaque contraste.
-## L'objet signif contient déjà les deux seuils :
-## padj < padj_cut et abs(log2FoldChange) >= lfc_cut.
-## Les contrastes DESeq2 restent inchangés (group1 vs group2).
-## Pour harmoniser les figures avec la progression Head → Body → Tail :
-##   UP   = deuxième groupe plus exprimé = log2FoldChange < 0
-##   DOWN = premier groupe plus exprimé = log2FoldChange > 0
-## Aucun résultat DESeq2 ni aucune matrice n'est modifié.
+## Number of up- and downregulated DE genes for each contrast.
+## The signif object already includes both thresholds:
+## padj < padj_cut and abs(log2FoldChange) >= lfc_cut.
+## DESeq2 contrasts remain unchanged (group1 vs group2).
+## To harmonize the figures with the Head → Body → Tail progression:
+##   UP   = higher expression in the second group = log2FoldChange < 0
+##   DOWN = higher expression in the first group = log2FoldChange > 0
+## No DESeq2 result or matrix is modified.
 de_counts_by_contrast <- lapply(
   contrast_order_barplot,
   function(contrast_name) {
@@ -2736,8 +2736,8 @@ de_counts_by_contrast <- lapply(
 ) %>%
   dplyr::bind_rows()
 
-## Construire toutes les combinaisons biotype x contraste,
-## y compris celles ne contenant aucun gène DE.
+## Build all biotype x contrast combinations,
+## including those containing no DE genes.
 de_barplot_summary <- tidyr::expand_grid(
   contrast = contrast_order_barplot,
   biotype_priority = biotype_order_barplot
@@ -2766,7 +2766,7 @@ de_barplot_summary <- tidyr::expand_grid(
   ) %>%
   dplyr::arrange(biotype_priority, comparison)
 
-## Contrôles de cohérence avant la figure.
+## Consistency checks before plotting.
 if (any(
   de_barplot_summary$n_DE_total !=
     de_barplot_summary$n_up_DE + de_barplot_summary$n_down_DE
@@ -2787,7 +2787,7 @@ if (any(
   )
 }
 
-## Les autres gènes correspondent aux gènes non-DE avec les seuils utilisés.
+## Other genes correspond to non-DE genes under the thresholds used.
 de_barplot_summary <- de_barplot_summary %>%
   dplyr::mutate(
     n_other_genes = n_total_genes - n_DE_total
@@ -2809,8 +2809,8 @@ write.table(
   row.names = FALSE
 )
 
-## Passage au format long pour construire une seule barre empilée :
-## autres gènes + gènes DE down + gènes DE up = total des gènes.
+## Convert to long format to build a single stacked bar:
+## other genes + downregulated DE genes + upregulated DE genes = total genes.
 de_barplot_long <- de_barplot_summary %>%
   dplyr::select(
     contrast,
@@ -2846,7 +2846,7 @@ de_barplot_long <- de_barplot_summary %>%
     )
   )
 
-## Noms plus lisibles dans les facettes
+## More readable names for facet labels
 biotype_facet_labels <- c(
   miR = "miRNA",
   tRF = "tRF",
@@ -2875,14 +2875,14 @@ p_de_barplot_biotype <- ggplot(
     fill = gene_status
   )
 ) +
-  ## Une seule barre empilée dont la hauteur est égale
-  ## au nombre total de gènes du biotype.
+  ## A single stacked bar whose height equals
+  ## the total number of genes in the biotype.
   geom_col(
     width = 0.72,
     color = "black",
     linewidth = 0.35
   ) +
-  ## Afficher au-dessus de chaque barre le total et les effectifs up/down.
+  ## Display the total and up/down counts above each bar.
   geom_text(
     data = de_barplot_summary %>%
       dplyr::filter(n_total_genes > 0),
@@ -2984,7 +2984,7 @@ include_pdf_as_large_png(figs)
 
 message("---- Diagrammes de Venn des gènes DE up par biotype ----")
 
-## Le package VennDiagram est installé dans le bloc 1.
+## The VennDiagram package is installed in block 1.
 if (!requireNamespace("VennDiagram", quietly = TRUE)) {
   stop("Le package VennDiagram n'est pas disponible après le bloc d'installation.")
 }
@@ -3000,7 +3000,7 @@ dir.create(
   recursive = TRUE
 )
 
-## Supprimer les anciennes figures pour éviter d'afficher des fichiers obsolètes
+## Remove old figures to avoid displaying obsolete files
 old_venn_files <- list.files(
   venn_up_dir,
   pattern = "^Venn_up_genes_.*\\.pdf$",
@@ -3036,7 +3036,7 @@ if (length(missing_contrasts_venn) > 0) {
   )
 }
 
-## Récupérer les gènes DE up dans le second groupe pour un contraste et un biotype
+## Retrieve upregulated DE genes in the second group for a contrast and biotype
 get_up_genes_for_venn <- function(contrast_name, biotype_name) {
 
   contrast_df <- gene_level_volcano_results[[contrast_name]]
@@ -3059,7 +3059,7 @@ get_up_genes_for_venn <- function(contrast_name, biotype_name) {
     unique()
 }
 
-## Ordre logique des biotypes
+## Logical biotype order
 preferred_biotype_order_venn <- c(
   "miR",
   "tRF",
@@ -3108,7 +3108,7 @@ for (biotype_name in biotypes_for_venn) {
     )
   )
 
-  ## Garantir des vecteurs de caractères uniques sans NA
+  ## Ensure unique character vectors without NA values
   venn_sets <- lapply(
     venn_sets,
     function(x) unique(as.character(x[!is.na(x) & x != ""]))
@@ -3172,7 +3172,7 @@ for (biotype_name in biotypes_for_venn) {
     venn_up_membership_list[[biotype_name]] <- membership_biotype
   }
 
-  ## Aucun diagramme à produire si les trois ensembles sont vides
+  ## No diagram to generate if all three sets are empty
   if (length(all_up_genes) == 0) {
     message(
       "Aucun gène DE up pour le biotype ",
@@ -3197,8 +3197,8 @@ for (biotype_name in biotypes_for_venn) {
     )
   )
 
-  ## filename = NULL renvoie l'objet grid sans tenter d'écrire directement
-  ## un format PDF non pris en charge par l'argument imagetype.
+  ## filename = NULL returns the grid object without attempting to write directly
+  ## a PDF format that is not supported by the imagetype argument.
   venn_grob <- VennDiagram::venn.diagram(
     x = venn_sets,
     filename = NULL,
@@ -3322,7 +3322,7 @@ include_pdf_as_large_png(figs)
 
 message("---- Figures schématiques avec pie charts par biotype ----")
 
-## Le package ggforce est installé dans le bloc 1.
+## The ggforce package is installed in block 1.
 if (!requireNamespace("ggforce", quietly = TRUE)) {
   stop("Le package ggforce n'est pas disponible après le bloc d'installation.")
 }
@@ -3338,7 +3338,7 @@ dir.create(
   recursive = TRUE
 )
 
-## Supprimer les anciennes figures
+## Remove old figures
 old_schematic_files <- list.files(
   schematic_dir,
   pattern = "^Schematic_piecharts_.*\\.pdf$",
@@ -3387,7 +3387,7 @@ if (length(missing_contrasts_schematic) > 0) {
   )
 }
 
-## Résumer les gènes DE et les gènes DE up pour chaque biotype
+## Summarize DE genes and upregulated DE genes for each biotype
 schematic_summary_raw <- lapply(
   names(contrast_labels_schematic),
   function(contrast_name) {
@@ -3486,7 +3486,7 @@ write.table(
   row.names = FALSE
 )
 
-## Position des trois camemberts
+## Positions of the three pie charts
 pie_positions <- tibble::tibble(
   comparison = c("H → B", "B → T", "H → T"),
   x = c(2, 6, 4),
@@ -3506,7 +3506,7 @@ build_pie_df <- function(df_positioned) {
       up_i <- as.numeric(row_i$n_up)
       other_i <- total_i - up_i
 
-      ## Aucun gène DE : cercle gris avec 0/0
+      ## No DE genes: gray circle with 0/0
       if (total_i == 0) {
         return(
           tibble::tibble(
@@ -3585,7 +3585,7 @@ plot_one_biotype_schematic <- function(biotype_name) {
 
   p <- ggplot() +
 
-    ## Flèche Head vers Body
+    ## Head to Body arrow
     annotate(
       "segment",
       x = 0.6,
@@ -3599,7 +3599,7 @@ plot_one_biotype_schematic <- function(biotype_name) {
       linewidth = 0.8
     ) +
 
-    ## Flèche Body vers Tail
+    ## Body to Tail arrow
     annotate(
       "segment",
       x = 4.6,
@@ -3613,7 +3613,7 @@ plot_one_biotype_schematic <- function(biotype_name) {
       linewidth = 0.8
     ) +
 
-    ## Flèche courbe Head vers Tail placée en bas
+    ## Curved Head to Tail arrow positioned at the bottom
     annotate(
       "curve",
       x = 0.7,
@@ -3628,7 +3628,7 @@ plot_one_biotype_schematic <- function(biotype_name) {
       linewidth = 0.8
     ) +
 
-    ## Nœuds Head, Body et Tail
+    ## Head, Body, and Tail nodes
     annotate(
       "text",
       x = 0,
@@ -3654,7 +3654,7 @@ plot_one_biotype_schematic <- function(biotype_name) {
       fontface = "bold"
     ) +
 
-    ## Camemberts placés près de chaque flèche
+    ## Pie charts positioned near each arrow
     ggforce::geom_arc_bar(
       data = pie_df,
       aes(
@@ -3671,7 +3671,7 @@ plot_one_biotype_schematic <- function(biotype_name) {
       inherit.aes = FALSE
     ) +
 
-    ## Nom de la comparaison au-dessus du camembert
+    ## Comparison name above the pie chart
     geom_text(
       data = df_bio,
       aes(
@@ -3683,7 +3683,7 @@ plot_one_biotype_schematic <- function(biotype_name) {
       size = 4.2
     ) +
 
-    ## Effectif up / total DE, séparé des lignes et flèches
+    ## Up count / total DE count, separated from lines and arrows
     geom_label(
       data = df_bio,
       aes(
@@ -3819,7 +3819,7 @@ dir.create(
 )
 
 ############################################################
-# Vérification des objets nécessaires
+# Check required objects
 ############################################################
 
 required_objects_abundance <- c(
@@ -3862,7 +3862,7 @@ if (length(missing_tail_contrasts) > 0) {
 }
 
 ############################################################
-# Identification des échantillons Tail
+# Identify Tail samples
 ############################################################
 
 spz_tail_samples <- meta %>%
@@ -3900,10 +3900,10 @@ if (length(epididymis_tail_samples) == 0) {
 }
 
 ############################################################
-# Calcul de l'abondance relative gene-level
+# Calculate gene-level relative abundance
 ############################################################
 
-## Total des UMI gene-level annotés dans chaque échantillon
+## Total annotated gene-level UMIs in each sample
 gene_level_library_sizes <- colSums(
   counts_gene_DE,
   na.rm = TRUE
@@ -3916,7 +3916,7 @@ if (any(gene_level_library_sizes <= 0)) {
   )
 }
 
-## Conversion en UMI CPM
+## Convert to UMI CPM
 counts_gene_cpm <- sweep(
   counts_gene_DE,
   MARGIN = 2,
@@ -3925,13 +3925,13 @@ counts_gene_cpm <- sweep(
 ) * 1e6
 
 ############################################################
-# Abondance moyenne et médiane dans les deux types de Tail
+# Mean and median abundance in the two Tail sample types
 ############################################################
 
 abundance_tail <- tibble::tibble(
   gene_id = rownames(counts_gene_DE),
 
-  ## Spermatozoïdes Tail : counts UMI bruts
+  ## Tail spermatozoa: raw UMI counts
   mean_spz_tail_raw_umi = rowMeans(
     counts_gene_DE[
       ,
@@ -3952,7 +3952,7 @@ abundance_tail <- tibble::tibble(
     na.rm = TRUE
   ),
 
-  ## Spermatozoïdes Tail : UMI CPM
+  ## Tail spermatozoa: UMI CPM
   mean_spz_tail_cpm = rowMeans(
     counts_gene_cpm[
       ,
@@ -3973,7 +3973,7 @@ abundance_tail <- tibble::tibble(
     na.rm = TRUE
   ),
 
-  ## Épididyme Tail : counts UMI bruts
+  ## Tail epididymis: raw UMI counts
   mean_epididymis_tail_raw_umi = rowMeans(
     counts_gene_DE[
       ,
@@ -3994,7 +3994,7 @@ abundance_tail <- tibble::tibble(
     na.rm = TRUE
   ),
 
-  ## Épididyme Tail : UMI CPM
+  ## Tail epididymis: UMI CPM
   mean_epididymis_tail_cpm = rowMeans(
     counts_gene_cpm[
       ,
@@ -4017,7 +4017,7 @@ abundance_tail <- tibble::tibble(
 )
 
 ############################################################
-# Percentile d'abondance à l'intérieur de chaque biotype
+# Abundance percentile within each biotype
 ############################################################
 abundance_reference <- annot_gene %>%
   dplyr::filter(
@@ -4037,8 +4037,8 @@ abundance_reference <- annot_gene %>%
   dplyr::group_by(biotype_priority) %>%
   dplyr::mutate(
 
-    ## Une valeur proche de 100 indique un gène
-    ## parmi les plus abondants de son biotype.
+    ## A value close to 100 indicates a gene
+    ## among the most abundant in its biotype.
     spz_tail_abundance_percentile = {
       if (dplyr::n() <= 1L) {
         rep(100, dplyr::n())
@@ -4060,7 +4060,7 @@ abundance_reference <- annot_gene %>%
   dplyr::ungroup()
 
 ############################################################
-# Orientation des résultats DE vers Tail
+# Orient DE results toward Tail
 ############################################################
 
 comparison_labels_tail <- c(
@@ -4086,10 +4086,10 @@ tail_abundance_results <- lapply(
           comparison_labels_tail[contrast_name]
         ),
 
-        ## Les contrastes initiaux sont :
-        ## Head vs Tail et Body vs Tail.
-        ## L'inversion du signe permet d'obtenir :
-        ## Tail vs Head et Tail vs Body.
+        ## The original contrasts are:
+        ## Head vs Tail and Body vs Tail.
+        ## Inverting the sign yields:
+        ## Tail vs Head and Tail vs Body.
         tail_log2FoldChange = -log2FoldChange,
 
         tail_up_DE =
@@ -4130,7 +4130,7 @@ tail_abundance_results <- lapply(
   dplyr::bind_rows()
 
 ############################################################
-# Ordre des comparaisons et des biotypes
+# Order of comparisons and biotypes
 ############################################################
 
 tail_abundance_results <- tail_abundance_results %>%
@@ -4190,7 +4190,7 @@ tail_abundance_results <- tail_abundance_results %>%
   )
 
 ############################################################
-# Export du tableau complet
+# Export the complete table
 ############################################################
 
 write.table(
@@ -4205,7 +4205,7 @@ write.table(
 )
 
 ############################################################
-# Tableau des gènes Tail-up DE
+# Table of Tail-up DE genes
 ############################################################
 
 tail_up_DE_abundance <- tail_abundance_results %>%
@@ -4228,7 +4228,7 @@ write.table(
 )
 
 ############################################################
-# Résumé de l'abondance par biotype
+# Abundance summary by biotype
 ############################################################
 
 tail_up_abundance_summary <- tail_up_DE_abundance %>%
@@ -4297,11 +4297,11 @@ write.table(
 )
 
 ############################################################
-# Gènes à étiqueter dans les figures
+# Genes to label in the figures
 ############################################################
 
-## Trois gènes Tail-up les plus abondants
-## par biotype et par comparaison.
+## Three most abundant Tail-up genes
+## per biotype and comparison.
 top_labels_spz_tail <- tail_up_DE_abundance %>%
   dplyr::filter(
     !is.na(gene_name_priority),
@@ -4345,7 +4345,7 @@ biotype_labels_abundance <- c(
 )
 
 ############################################################
-# Fonction de création des figures MA-like
+# Function for creating MA-like plots
 ############################################################
 
 make_tail_abundance_MA_like_plot <- function(
@@ -4382,14 +4382,14 @@ make_tail_abundance_MA_like_plot <- function(
     )
   ) +
 
-    ## Tous les gènes du biotype
+    ## All genes in the biotype
     geom_point(
       color = "grey75",
       alpha = 0.45,
       size = 1
     ) +
 
-    ## Gènes DE enrichis dans Tail
+    ## DE genes enriched in Tail
     geom_point(
       data = plot_df %>%
         dplyr::filter(tail_up_DE),
@@ -4398,13 +4398,13 @@ make_tail_abundance_MA_like_plot <- function(
       size = 1.8
     ) +
 
-    ## Ligne correspondant à aucune différence
+    ## Line corresponding to no difference
     geom_hline(
       yintercept = 0,
       linewidth = 0.35
     ) +
 
-    ## Seuils de log2 fold change
+    ## Log2 fold-change thresholds
     geom_hline(
       yintercept = c(
         -lfc_cut,
@@ -4414,7 +4414,7 @@ make_tail_abundance_MA_like_plot <- function(
       linewidth = 0.45
     ) +
 
-    ## Étiqueter les gènes Tail-up les plus abondants
+    ## Label the most abundant Tail-up genes
     ggrepel::geom_text_repel(
       data = label_df,
       aes(label = gene_name_priority),
@@ -4475,7 +4475,7 @@ make_tail_abundance_MA_like_plot <- function(
 }
 
 ############################################################
-# Figure 1 : abondance dans les spermatozoïdes Tail
+# Figure 1: abundance in Tail spermatozoa
 ############################################################
 
 make_tail_abundance_MA_like_plot(
@@ -4497,7 +4497,7 @@ make_tail_abundance_MA_like_plot(
 )
 
 ############################################################
-# Figure 2 : abondance dans l'épididyme Tail
+# Figure 2: abundance in Tail epididymis
 ############################################################
 
 make_tail_abundance_MA_like_plot(
@@ -4519,11 +4519,11 @@ make_tail_abundance_MA_like_plot(
 )
 
 ############################################################
-# Figure 3 : comparaison directe SPZ Tail / épididyme Tail
+# Figure 3: direct SPZ Tail / epididymis Tail comparison
 ############################################################
 
-## Un même gène peut être Tail-up dans une ou dans les deux
-## comparaisons. On crée ici une seule ligne par gène.
+## The same gene can be Tail-up in one or both
+## comparisons. Here, one row per gene is created.
 tail_up_unique_genes <- tail_up_DE_abundance %>%
   dplyr::mutate(
     comparison_character = as.character(comparison)
@@ -4706,7 +4706,7 @@ dir.create(
 )
 
 ############################################################
-# Vérification des objets et fonctions nécessaires
+# Check required objects and functions
 ############################################################
 
 required_objects_read_gene_status <- c(
@@ -4750,7 +4750,7 @@ if (!exists("clean_gene_id", mode = "function")) {
 }
 
 ############################################################
-# Métadonnées spermatozoïdes Head / Body / Tail
+# Head / Body / Tail spermatozoa metadata
 ############################################################
 
 meta_spz_read_status <- prepare_spz_metadata(
@@ -4783,8 +4783,8 @@ stopifnot(
   )
 )
 
-## Conserver uniquement les read-level features présentes
-## dans au moins un échantillon spermatozoïde.
+## Keep only read-level features present
+## in at least one spermatozoa sample.
 reads_present_in_spz <- rowSums(
   counts_read_spz_status,
   na.rm = TRUE
@@ -4809,7 +4809,7 @@ if (nrow(counts_read_spz_status) == 0) {
 }
 
 ############################################################
-# DESeq2 read-level commun aux trois régions
+# Shared read-level DESeq2 analysis across the three regions
 ############################################################
 
 dds_read_spz_status <- DESeq2::DESeqDataSetFromMatrix(
@@ -4823,7 +4823,7 @@ dds_read_spz_status <- DESeq2::DESeq(
 )
 
 ############################################################
-# Annotation des read-level features
+# Read-level feature annotation
 ############################################################
 
 read_annotation_status <- counts_filtered_out %>%
@@ -4867,7 +4867,7 @@ if (nrow(read_annotation_status) == 0) {
 }
 
 ############################################################
-# Définition des trois comparaisons
+# Define the three comparisons
 ############################################################
 
 comparison_definitions_status <- list(
@@ -4907,7 +4907,7 @@ if (length(missing_gene_contrasts_status) > 0) {
 }
 
 ############################################################
-# Comparaison des statuts read-level et gene-level
+# Compare read-level and gene-level statuses
 ############################################################
 
 read_gene_status_results <- lapply(
@@ -4925,7 +4925,7 @@ read_gene_status_results <- lapply(
     )
 
     ########################################################
-    # Résultats read-level
+    # Read-level results
     ########################################################
 
     read_res_i <- DESeq2::results(
@@ -4969,7 +4969,7 @@ read_gene_status_results <- lapply(
       )
 
     ########################################################
-    # Résultats gene-level
+    # Gene-level results
     ########################################################
 
     gene_res_df_i <-
@@ -4997,7 +4997,7 @@ read_gene_status_results <- lapply(
       )
 
     ########################################################
-    # Association de chaque read avec son gène
+    # Associate each read with its gene
     ########################################################
 
     status_df_i <- read_res_df_i %>%
@@ -5049,7 +5049,7 @@ read_gene_status_results <- lapply(
   dplyr::bind_rows()
 
 ############################################################
-# Contrôles
+# Checks
 ############################################################
 
 if (nrow(read_gene_status_results) == 0) {
@@ -5071,7 +5071,7 @@ message(
 )
 
 ############################################################
-# Export du statut de chaque read-level feature
+# Export the status of each read-level feature
 ############################################################
 
 write.table(
@@ -5089,7 +5089,7 @@ write.table(
 )
 
 ############################################################
-# Nombre de reads DE sur le nombre total de reads par gène
+# Number of DE reads out of the total number of reads per gene
 ############################################################
 
 per_gene_read_DE_summary <- read_gene_status_results %>%
@@ -5154,7 +5154,7 @@ write.table(
 )
 
 ############################################################
-# Résumé des catégories par biotype
+# Category summary by biotype
 ############################################################
 
 status_levels_read_gene <- c(
@@ -5294,7 +5294,7 @@ write.table(
 )
 
 ############################################################
-# Noms utilisés dans la figure
+# Names used in the figure
 ############################################################
 
 biotype_labels_read_gene <- c(
@@ -5315,7 +5315,7 @@ status_labels_read_gene <- c(
 )
 
 ############################################################
-# Couleurs sobres et ordre d'empilement
+# Muted colors and stacking order
 ############################################################
 
 status_stack_order <- c(
@@ -5333,7 +5333,7 @@ status_colors_read_gene <- c(
 )
 
 ############################################################
-# Préparation des données pour la figure
+# Prepare data for the figure
 ############################################################
 
 plot_df_read_gene_stacked <- read_gene_status_barplot_summary %>%
@@ -5412,7 +5412,7 @@ plot_df_read_gene_stacked <- plot_df_read_gene_stacked %>%
   )
 
 ############################################################
-# Figure unique : une barre empilée par biotype
+# Single figure: one stacked bar per biotype
 ############################################################
 
 output_file_stacked <- file.path(
@@ -5579,7 +5579,7 @@ message(
 )
 
 ############################################################
-# Vérification du package pheatmap
+# Check the pheatmap package
 ############################################################
 
 if (!requireNamespace("pheatmap", quietly = TRUE)) {
@@ -5607,7 +5607,7 @@ if (!requireNamespace("pheatmap", quietly = TRUE)) {
 }
 
 ############################################################
-# Dossier de sortie
+# Output directory
 ############################################################
 
 correlation_root_dir <- file.path(
@@ -5622,7 +5622,7 @@ dir.create(
 )
 
 ############################################################
-# Vérification des objets nécessaires
+# Check required objects
 ############################################################
 
 required_objects_correlation <- c(
@@ -5656,7 +5656,7 @@ if (!exists("safe_vst", mode = "function")) {
 }
 
 ############################################################
-# Suppression des anciennes figures
+# Remove old figures
 ############################################################
 
 old_correlation_files <- list.files(
@@ -5674,7 +5674,7 @@ if (length(old_correlation_files) > 0) {
 }
 
 ############################################################
-# Ordre et noms des biotypes
+# Biotype order and names
 ############################################################
 
 preferred_biotype_order_correlation <- c(
@@ -5730,7 +5730,7 @@ biotype_labels_correlation <- c(
 )
 
 ############################################################
-# Contextes analysés séparément
+# Contexts analyzed separately
 ############################################################
 
 correlation_contexts <- list(
@@ -5751,7 +5751,7 @@ correlation_contexts <- list(
 )
 
 ############################################################
-# Palette fixe de 0 à 1
+# Fixed palette from 0 to 1
 ############################################################
 
 correlation_colors <- grDevices::colorRampPalette(
@@ -5764,8 +5764,8 @@ correlation_colors <- grDevices::colorRampPalette(
   )
 )(101)
 
-## Le nombre de coupures doit être égal
-## au nombre de couleurs + 1.
+## The number of breaks must equal
+## the number of colors + 1.
 correlation_breaks <- seq(
   from = 0,
   to = 1,
@@ -5773,7 +5773,7 @@ correlation_breaks <- seq(
 )
 
 ############################################################
-# Fonction de création d'une heatmap
+# Function for creating a heatmap
 ############################################################
 
 make_correlation_heatmap_one_biotype <- function(
@@ -5793,7 +5793,7 @@ make_correlation_heatmap_one_biotype <- function(
   )
 
   ##########################################################
-  # Sélection des features appartenant au biotype
+  # Select features belonging to the biotype
   ##########################################################
 
   features_biotype <- counts_filtered_out %>%
@@ -5830,7 +5830,7 @@ make_correlation_heatmap_one_biotype <- function(
   }
 
   ##########################################################
-  # Matrice du biotype et du tissu concerné
+  # Matrix for the biotype and tissue of interest
   ##########################################################
 
   counts_biotype_context <- counts_DE[
@@ -5839,7 +5839,7 @@ make_correlation_heatmap_one_biotype <- function(
     drop = FALSE
   ]
 
-  ## Retirer les features absentes de tous les échantillons
+  ## Remove features absent from all samples
   counts_biotype_context <- counts_biotype_context[
     rowSums(
       counts_biotype_context,
@@ -5868,7 +5868,7 @@ make_correlation_heatmap_one_biotype <- function(
     )
   }
 
-  ## Vérifier qu'aucun échantillon n'a une colonne entièrement nulle
+  ## Check that no sample has an entirely zero column
   samples_all_zero <- colSums(
     counts_biotype_context,
     na.rm = TRUE
@@ -5894,7 +5894,7 @@ make_correlation_heatmap_one_biotype <- function(
   }
 
   ##########################################################
-  # Alignement strict des métadonnées
+  # Strict metadata alignment
   ##########################################################
 
   meta_context_aligned <- meta_context[
@@ -5911,7 +5911,7 @@ make_correlation_heatmap_one_biotype <- function(
   )
 
   ##########################################################
-  # Transformation VST
+  # VST transformation
   ##########################################################
 
   dds_correlation <- DESeq2::DESeqDataSetFromMatrix(
@@ -5922,7 +5922,7 @@ make_correlation_heatmap_one_biotype <- function(
     design = ~ 1
   )
 
-  ## Plus robuste pour les matrices contenant beaucoup de zéros
+  ## More robust for matrices containing many zeros
   dds_correlation <- DESeq2::estimateSizeFactors(
     dds_correlation,
     type = "poscounts"
@@ -5943,7 +5943,7 @@ make_correlation_heatmap_one_biotype <- function(
   )
 
   ##########################################################
-  # Corrélation de Spearman entre échantillons
+  # Spearman correlation between samples
   ##########################################################
 
   correlation_matrix <- stats::cor(
@@ -5966,7 +5966,7 @@ make_correlation_heatmap_one_biotype <- function(
     )
   }
 
-  ## Sécurité numérique
+  ## Numerical safeguard
   correlation_matrix[
     correlation_matrix > 1
   ] <- 1
@@ -5976,7 +5976,7 @@ make_correlation_heatmap_one_biotype <- function(
   ] <- -1
 
   ##########################################################
-  # Labels des échantillons
+  # Sample labels
   ##########################################################
 
   meta_context_labels <- meta_context_aligned %>%
@@ -6028,7 +6028,7 @@ make_correlation_heatmap_one_biotype <- function(
     missing_labels
   ]
 
-  ## Éviter les noms identiques dans la heatmap
+  ## Avoid duplicate names in the heatmap
   display_labels <- make.unique(
     display_labels
   )
@@ -6042,7 +6042,7 @@ make_correlation_heatmap_one_biotype <- function(
   ) <- display_labels
 
   ##########################################################
-  # Export de la matrice de corrélation
+  # Export the correlation matrix
   ##########################################################
 
   biotype_file_name <- gsub(
@@ -6076,7 +6076,7 @@ make_correlation_heatmap_one_biotype <- function(
   )
 
   ##########################################################
-  # Nom lisible du biotype
+  # Readable biotype name
   ##########################################################
 
   if (biotype_name %in% names(biotype_labels_correlation)) {
@@ -6093,7 +6093,7 @@ make_correlation_heatmap_one_biotype <- function(
   }
 
   ##########################################################
-  # Paramètres de dimension
+  # Dimension parameters
   ##########################################################
 
   n_samples_correlation <- ncol(
@@ -6112,7 +6112,7 @@ make_correlation_heatmap_one_biotype <- function(
   )
 
   ##########################################################
-  # Création directe du PDF par pheatmap
+  # Create the PDF directly with pheatmap
   ##########################################################
 
   output_pdf_correlation <- file.path(
@@ -6126,7 +6126,7 @@ make_correlation_heatmap_one_biotype <- function(
     )
   )
 
-  ## Supprimer un éventuel fichier incomplet
+  ## Remove any incomplete file
   if (file.exists(output_pdf_correlation)) {
     invisible(
       file.remove(output_pdf_correlation)
@@ -6155,13 +6155,13 @@ make_correlation_heatmap_one_biotype <- function(
 
         clustering_method = "average",
 
-        ## Aucun nombre dans les cases
+        ## No numbers in the cells
         display_numbers = FALSE,
 
-        ## Aucun contour visible entre les cases
+        ## No visible borders between cells
         border_color = NA,
 
-        ## Dendrogrammes visibles
+        ## Show dendrograms
         treeheight_row = 50,
         treeheight_col = 50,
 
@@ -6206,7 +6206,7 @@ make_correlation_heatmap_one_biotype <- function(
   )
 
   ##########################################################
-  # Vérification du PDF produit
+  # Check the generated PDF
   ##########################################################
 
   pdf_is_created <-
@@ -6244,7 +6244,7 @@ make_correlation_heatmap_one_biotype <- function(
 }
 
 ############################################################
-# Génération des heatmaps
+# Generate heatmaps
 ############################################################
 
 generated_correlation_files <- list()
@@ -6265,7 +6265,7 @@ for (context_name in names(correlation_contexts)) {
   )
 
   ##########################################################
-  # Métadonnées du tissu concerné
+  # Metadata for the tissue of interest
   ##########################################################
 
   meta_context <- meta %>%
@@ -6336,7 +6336,7 @@ for (context_name in names(correlation_contexts)) {
   }
 
   ##########################################################
-  # Une heatmap par biotype
+  # One heatmap per biotype
   ##########################################################
 
   generated_correlation_files[[context_name]] <- lapply(
@@ -6453,7 +6453,7 @@ dir.create(
 )
 
 ############################################################
-# Vérification des objets nécessaires
+# Check required objects
 ############################################################
 
 required_objects_distribution <- c(
@@ -6487,7 +6487,7 @@ if (!exists("safe_vst", mode = "function")) {
 }
 
 ############################################################
-# Annotation des features conservées
+# Annotation of retained features
 ############################################################
 
 distribution_annotation <- counts_filtered_out %>%
@@ -6514,7 +6514,7 @@ if (nrow(distribution_annotation) == 0) {
 }
 
 ############################################################
-# VST sur l'ensemble du dataset filtré
+# VST on the entire filtered dataset
 ############################################################
 
 meta_distribution <- meta %>%
@@ -6551,7 +6551,7 @@ vst_distribution_matrix <- SummarizedExperiment::assay(
 )
 
 ############################################################
-# Table résumée par feature
+# Summary table by feature
 ############################################################
 
 feature_distribution_df <- tibble::tibble(
@@ -6592,7 +6592,7 @@ write.table(
 )
 
 ############################################################
-# Ordre des biotypes
+# Biotype order
 ############################################################
 
 preferred_biotype_order_distribution <- c(
@@ -6640,7 +6640,7 @@ feature_distribution_df <- feature_distribution_df %>%
   )
 
 ############################################################
-# Figure 1 : histogramme global des log10(mean count + 1)
+# Figure 1: global histogram of log10(mean count + 1)
 ############################################################
 
 grDevices::pdf(
@@ -6687,7 +6687,7 @@ print(p_hist_global)
 invisible(grDevices::dev.off())
 
 ############################################################
-# Figure 2 : histogrammes par biotype des counts moyens
+# Figure 2: histograms of mean counts by biotype
 ############################################################
 
 grDevices::pdf(
@@ -6743,7 +6743,7 @@ print(p_hist_biotype_raw)
 invisible(grDevices::dev.off())
 
 ############################################################
-# Figure 3 : histogrammes par biotype des mean VST
+# Figure 3: histograms of mean VST by biotype
 ############################################################
 
 grDevices::pdf(
@@ -6799,7 +6799,7 @@ print(p_hist_biotype_vst)
 invisible(grDevices::dev.off())
 
 ############################################################
-# Figure 4 : QQ-plots par biotype des mean VST
+# Figure 4: QQ plots of mean VST by biotype
 ############################################################
 
 grDevices::pdf(
@@ -6896,7 +6896,7 @@ include_pdf_as_large_png(figs)
 
 ## ----22b-barplot-total-read-features-and-up-down-de-by-biotype, eval=TRUE, message=FALSE, warning=FALSE------------------------------
 ############################################################
-# 22 bis. Total read-level features and up/down DE features
+# 22b. Total read-level features and up/down DE features
 #         by biotype
 ############################################################
 
@@ -6919,7 +6919,7 @@ dir.create(
 )
 
 ############################################################
-# Vérification des objets nécessaires
+# Check required objects
 ############################################################
 
 required_objects_read_barplot <- c(
@@ -6972,7 +6972,7 @@ if (length(missing_columns_read_barplot) > 0) {
 }
 
 ############################################################
-# Ordre des comparaisons
+# Comparison order
 ############################################################
 
 contrast_order_read_barplot <- c(
@@ -7007,7 +7007,7 @@ if (length(missing_contrasts_read_barplot) > 0) {
 }
 
 ############################################################
-# Ordre des biotypes
+# Biotype order
 ############################################################
 
 preferred_biotype_order_read_barplot <- c(
@@ -7053,12 +7053,12 @@ if (length(biotype_order_read_barplot) == 0) {
 }
 
 ############################################################
-# Nombre total de read-level features par biotype
+# Total number of read-level features per biotype
 ############################################################
 
-## read_gene_status_results contient une ligne par feature
-## et par contraste. On conserve ici une seule ligne par
-## feature pour calculer le nombre total de features distinctes.
+## read_gene_status_results contains one row per feature
+## and contrast. Here, keep only one row per
+## feature to calculate the total number of distinct features.
 total_read_features_by_biotype <- read_gene_status_results %>%
   dplyr::filter(
     !is.na(feature_id),
@@ -7085,7 +7085,7 @@ print(
 )
 
 ############################################################
-# Nombre de read-level features DE up et down
+# Number of up- and downregulated DE read-level features
 ############################################################
 
 read_de_counts_by_contrast <- read_gene_status_results %>%
@@ -7102,16 +7102,16 @@ read_de_counts_by_contrast <- read_gene_status_results %>%
   ) %>%
   dplyr::summarise(
 
-    ## Toutes les features read-level significativement DE
+    ## All significantly DE read-level features
     n_DE_total = dplyr::n_distinct(
       feature_id[
         read_DE %in% TRUE
       ]
     ),
 
-    ## UP = expression plus élevée dans le second groupe.
-    ## Les contrastes read-level restent group1 vs group2,
-    ## donc cela correspond à read_log2FoldChange < 0.
+    ## UP = higher expression in the second group.
+    ## Read-level contrasts remain group1 vs group2,
+    ## so this corresponds to read_log2FoldChange < 0.
     n_up_DE = dplyr::n_distinct(
       feature_id[
         read_DE %in% TRUE &
@@ -7120,8 +7120,8 @@ read_de_counts_by_contrast <- read_gene_status_results %>%
       ]
     ),
 
-    ## DOWN = expression plus élevée dans le premier groupe,
-    ## donc read_log2FoldChange > 0 dans la table DESeq2 originale.
+    ## DOWN = higher expression in the first group,
+    ## so read_log2FoldChange > 0 in the original DESeq2 table.
     n_down_DE = dplyr::n_distinct(
       feature_id[
         read_DE %in% TRUE &
@@ -7139,7 +7139,7 @@ read_de_counts_by_contrast <- read_gene_status_results %>%
   )
 
 ############################################################
-# Tableau complet biotype x comparaison
+# Complete biotype x comparison table
 ############################################################
 
 read_de_barplot_summary <- tidyr::expand_grid(
@@ -7206,7 +7206,7 @@ read_de_barplot_summary <- tidyr::expand_grid(
   )
 
 ############################################################
-# Contrôles de cohérence
+# Consistency checks
 ############################################################
 
 if (any(
@@ -7244,7 +7244,7 @@ print(
 )
 
 ############################################################
-# Export du tableau résumé
+# Export the summary table
 ############################################################
 
 write.table(
@@ -7262,7 +7262,7 @@ write.table(
 )
 
 ############################################################
-# Passage au format long
+# Convert to long format
 ############################################################
 
 read_de_barplot_long <- read_de_barplot_summary %>%
@@ -7301,7 +7301,7 @@ read_de_barplot_long <- read_de_barplot_summary %>%
   )
 
 ############################################################
-# Noms lisibles des biotypes
+# Readable biotype names
 ############################################################
 
 biotype_facet_labels_read_barplot <- c(
@@ -7339,17 +7339,17 @@ p_read_de_barplot_biotype <- ggplot(
   )
 ) +
 
-  ## La hauteur totale correspond au nombre total
-  ## de read-level features du biotype.
+  ## The total height corresponds to the total number
+  ## of read-level features in the biotype.
   geom_col(
     width = 0.72,
     color = "black",
     linewidth = 0.35
   ) +
 
-  ## Étiquette placée au-dessus de la barre.
-  ## geom_label conserve la lisibilité même pour les
-  ## biotypes contenant peu de features.
+  ## Label positioned above the bar.
+  ## geom_label preserves readability even for
+  ## biotypes containing few features.
   geom_label(
     data = read_de_barplot_summary %>%
       dplyr::filter(
@@ -7503,7 +7503,7 @@ dir.create(
 )
 
 ############################################################
-# Vérification de l'objet produit par le bloc 22
+# Check the object produced by block 22
 ############################################################
 
 if (!exists("per_gene_read_DE_summary")) {
@@ -7542,7 +7542,7 @@ if (length(missing_trna_columns) > 0) {
 }
 
 ############################################################
-# Garder uniquement les tRNA / tRF
+# Keep only tRNA / tRF
 ############################################################
 
 trna_read_de_summary <- per_gene_read_DE_summary %>%
@@ -7585,7 +7585,7 @@ if (nrow(trna_read_de_summary) == 0) {
 }
 
 ############################################################
-# Contrôles
+# Checks
 ############################################################
 
 if (any(
@@ -7609,7 +7609,7 @@ if (any(
 }
 
 ############################################################
-# Export du tableau complet
+# Export the complete table
 ############################################################
 
 trna_read_de_export <- trna_read_de_summary %>%
@@ -7647,7 +7647,7 @@ write.table(
 )
 
 ############################################################
-# Résumé global
+# Overall summary
 ############################################################
 
 trna_read_de_global_summary <- trna_read_de_summary %>%
@@ -7704,7 +7704,7 @@ write.table(
 )
 
 ############################################################
-# Ordre des tRNA dans la figure
+# tRNA order in the figure
 ############################################################
 
 trna_order <- trna_read_de_summary %>%
@@ -7743,7 +7743,7 @@ trna_read_de_plot <- trna_read_de_summary %>%
   )
 
 ############################################################
-# Taille automatique de la figure
+# Automatic figure size
 ############################################################
 
 n_trna_plot <- dplyr::n_distinct(
@@ -7786,8 +7786,8 @@ p_trna_read_de <- ggplot(
     linewidth = 0.3
   ) +
 
-  ## Pourcentage suffisamment élevé :
-  ## étiquette à l'intérieur de la barre
+  ## Sufficiently high percentage:
+  ## label inside the bar
   geom_text(
     data = trna_read_de_plot %>%
       dplyr::filter(
@@ -7803,8 +7803,8 @@ p_trna_read_de <- ggplot(
     size = 3
   ) +
 
-  ## Pourcentage faible ou nul :
-  ## étiquette à droite de la barre
+  ## Low or zero percentage:
+  ## label to the right of the bar
   geom_text(
     data = trna_read_de_plot %>%
       dplyr::filter(
@@ -7936,7 +7936,7 @@ dir.create(
 )
 
 ############################################################
-# Vérification des objets nécessaires
+# Check required objects
 ############################################################
 
 required_objects_top10 <- c(
@@ -7972,7 +7972,7 @@ if (!exists("prepare_spz_metadata", mode = "function")) {
 }
 
 ############################################################
-# Annotation des read-level features
+# Read-level feature annotation
 ############################################################
 
 annotation_top10 <- counts_filtered_out %>%
@@ -7992,7 +7992,7 @@ annotation_top10 <- counts_filtered_out %>%
   )
 
 ############################################################
-# Taille des librairies APRES filtration
+# Library sizes AFTER filtering
 ############################################################
 
 filtered_library_sizes <- colSums(
@@ -8008,7 +8008,7 @@ if (any(filtered_library_sizes <= 0)) {
 }
 
 ############################################################
-# Conversion des counts read-level en CPM
+# Convert read-level counts to CPM
 ############################################################
 
 counts_DE_cpm <- sweep(
@@ -8019,7 +8019,7 @@ counts_DE_cpm <- sweep(
 ) * 1e6
 
 ############################################################
-# Abondance de chaque read dans tout le dataset filtré
+# Abundance of each read across the entire filtered dataset
 ############################################################
 
 read_abundance_all_samples <- tibble::tibble(
@@ -8057,7 +8057,7 @@ read_abundance_all_samples <- tibble::tibble(
   )
 
 ############################################################
-# Sélection exacte des 10 % les plus abondants
+# Exact selection of the top 10% most abundant reads
 ############################################################
 
 n_filtered_reads <- nrow(
@@ -8134,7 +8134,7 @@ message(
 )
 
 ############################################################
-# Export du Top 10 %
+# Export the top 10%
 ############################################################
 
 write.table(
@@ -8149,7 +8149,7 @@ write.table(
 )
 
 ############################################################
-# Abondance moyenne de chaque read dans chaque grand tissu
+# Mean abundance of each read in each major tissue type
 ############################################################
 
 tissues_top10 <- c(
@@ -8215,7 +8215,7 @@ if (nrow(tissue_mean_cpm_top10) == 0) {
 }
 
 ############################################################
-# Tissu dominant de chaque read
+# Dominant tissue for each read
 ############################################################
 
 dominant_tissue_top10 <- tissue_mean_cpm_top10 %>%
@@ -8263,7 +8263,7 @@ top10_abundant_reads <- top10_abundant_reads %>%
   )
 
 ############################################################
-# Export détaillé de l'abondance par tissu
+# Detailed export of abundance by tissue
 ############################################################
 
 write.table(
@@ -8289,7 +8289,7 @@ write.table(
 )
 
 ############################################################
-# Camembert 1 : tissu dominant
+# Pie chart 1: dominant tissue
 ############################################################
 
 top10_tissue_summary <- top10_abundant_reads %>%
@@ -8430,7 +8430,7 @@ invisible(
 )
 
 ############################################################
-# Camembert 2 : biotypes
+# Pie chart 2: biotypes
 ############################################################
 
 biotype_order_top10 <- c(
@@ -8591,8 +8591,8 @@ invisible(
 )
 
 ############################################################
-# Analyse différentielle SPZ Head vs Tail
-# uniquement pour le Top 10 %
+# Differential analysis of SPZ Head vs Tail
+# restricted to the top 10%
 ############################################################
 
 message(
@@ -8633,7 +8633,7 @@ counts_top10_spz_ht <- counts_DE[
 ]
 
 ############################################################
-# Retirer uniquement les features absentes de tous les SPZ
+# Remove only features absent from all SPZ samples
 ############################################################
 
 features_present_top10_spz <- rowSums(
@@ -8689,7 +8689,7 @@ res_top10_spz_ht <- DESeq2::results(
 )
 
 ############################################################
-# Annotation des résultats
+# Annotate results
 ############################################################
 
 res_top10_spz_ht_df <- as.data.frame(
@@ -8729,9 +8729,9 @@ res_top10_spz_ht_df <- as.data.frame(
       )
     ),
 
-    ## Le contraste DESeq2 reste Head vs Tail.
-    ## On crée une variable uniquement pour l'affichage afin que
-    ## Tail soit à droite du volcano, sans toucher au log2FC original.
+    ## The DESeq2 contrast remains Head vs Tail.
+    ## Create a variable for display only so that
+    ## Tail appears on the right side of the volcano plot without changing the original log2FC.
     plot_log2FoldChange = -log2FoldChange,
 
     signif =
@@ -8755,7 +8755,7 @@ res_top10_spz_ht_df <- as.data.frame(
   )
 
 ############################################################
-# Résumé DE
+# DE summary
 ############################################################
 
 n_top10_tested <- nrow(
@@ -8835,7 +8835,7 @@ write.table(
 )
 
 ############################################################
-# Features à étiqueter
+# Features to label
 ############################################################
 
 top_labels_top10_volcano <- res_top10_spz_ht_df %>%
@@ -9073,14 +9073,14 @@ include_pdf_as_large_png(
 )
 
 
-## ----v-rifier-les-lignes-avec-uniquement-des-0-avant-filtration, eval=TRUE-----------------------------------------------------------
+## ----check-all-zero-lines-before-filtering, eval=TRUE---------------------------------------------------------------------------------
 ############################################################
-# Vérifier les lignes avec uniquement des 0 avant filtration
+# Check rows containing only zeros before filtering
 ############################################################
 
 message("---- Vérification lignes avec uniquement des 0 avant filtration ----")
 
-## counts_only = matrice brute des counts, avant counts_filt
+## counts_only = raw count matrix, before counts_filt
 zero_rows_before_filter <- rowSums(counts_only, na.rm = TRUE) == 0
 
 n_zero_rows_before_filter <- sum(zero_rows_before_filter)
@@ -9092,7 +9092,7 @@ message("Pourcentage : ",
         round(100 * n_zero_rows_before_filter / nrow(counts_only), 3),
         "%")
 
-## Voir les lignes concernées dans la table complète avec annotations
+## View the affected rows in the complete table with annotations
 zero_rows_table <- counts[zero_rows_before_filter, , drop = FALSE]
 
 print(head(zero_rows_table, 20))
